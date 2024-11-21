@@ -8,9 +8,10 @@ from loguru import logger
 
 from app.config import config
 from app.models import const
-from app.models.schema import VideoConcatMode, VideoParams
+from app.models.schema import VideoConcatMode, VideoParams, MATERIAL_INFO_PROVIDER_COMFYUI, MaterialInfo
 from app.services import llm, material, subtitle, video, voice
 from app.services import state as sm
+from app.services.comfyui.comfyui_helpr import Helper
 from app.utils import utils
 
 
@@ -103,6 +104,7 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
 
     subtitle_fallback = False
+    logger.info(f"\n\n## hello zia {subtitle_provider}")
     if subtitle_provider == "edge":
         voice.create_subtitle(
             text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path
@@ -137,6 +139,42 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             )
             return None
         return [material_info.url for material_info in materials]
+    if params.video_source == MATERIAL_INFO_PROVIDER_COMFYUI:
+        logger.info("\n\n## preprocess local materials from custom")
+        helper = Helper(task_id)
+        extracted_data = helper.generate_pics()
+
+        if not extracted_data:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error(
+                "根据字幕生成提示词失败，请检查链路重试"
+            )
+            return None
+
+        params.video_clip_duration = audio_duration
+        for item in extracted_data:
+            m = MaterialInfo()
+            m.provider = MATERIAL_INFO_PROVIDER_COMFYUI
+            m.url = item['src_path']
+            duration: float = item['end_time'] - item['start_time']
+            duration = duration / 1000
+            m.duration = duration
+            if not params.video_materials:
+                params.video_materials = []
+            params.video_materials.append(m)
+
+        materials = video.preprocess_video(
+            materials=params.video_materials, clip_duration=params.video_clip_duration
+        )
+
+        if not materials:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error(
+                "错误 no valid materials found, please check the materials and try again."
+            )
+            return None
+        return [material_info.url for material_info in materials]
+
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         downloaded_videos = material.download_videos(
@@ -210,6 +248,16 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
+    # video.generate_video(
+    #     video_path=r'D:\AI\MoneyPrinterTurbo\merged_video.mp4',
+    #     audio_path=r'D:\AI\MoneyPrinterTurbo\storage\tasks\57efde1c-2254-4c7f-b3b0-da4bd2d63804\audio.mp3',
+    #     subtitle_path=r'D:\AI\MoneyPrinterTurbo\storage\tasks\57efde1c-2254-4c7f-b3b0-da4bd2d63804\subtitle.srt',
+    #     output_file=r'D:\AI\MoneyPrinterTurbo\my_video.mp4',
+    #     params=params,
+    # )
+    # print("end...")
+    # return
+
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
         
@@ -229,7 +277,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 2. Generate terms
     video_terms = ""
-    if params.video_source != "local":
+    if params.video_source != "local" and params.video_source != MATERIAL_INFO_PROVIDER_COMFYUI:
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)

@@ -2,6 +2,8 @@ import logging
 import re
 import json
 from typing import List
+
+import ollama
 from loguru import logger
 from openai import OpenAI
 from openai import AzureOpenAI
@@ -33,8 +35,8 @@ def _generate_response(prompt: str) -> str:
             model_name = config.app.get("moonshot_model_name")
             base_url = "https://api.moonshot.cn/v1"
         elif llm_provider == "ollama":
-            # api_key = config.app.get("openai_api_key")
-            api_key = "ollama"  # any string works but you are required to have one
+            api_key = config.app.get("ollama_api_key")
+            # api_key = "ollama"  # any string works but you are required to have one
             model_name = config.app.get("ollama_model_name")
             base_url = config.app.get("ollama_base_url", "")
             if not base_url:
@@ -232,10 +234,18 @@ def _generate_response(prompt: str) -> str:
                 api_key=api_key,
                 base_url=base_url,
             )
+            print("使用 OpenAI client")
+        try:
+            response = client.chat.completions.create(
+                model=model_name, messages=[{"role": "user", "content": prompt}]
+            )
+            # response = ollama.chat(model=model_name, stream=False, messages=[{"role": "user", "content": "你是谁"}],
+            #                   options={"temperature": 0})
+            print(response)
 
-        response = client.chat.completions.create(
-            model=model_name, messages=[{"role": "user", "content": prompt}]
-        )
+        except Exception as e:
+            print(f'异常 {e}')
+            raise e
         if response:
             if isinstance(response, ChatCompletion):
                 content = response.choices[0].message.content
@@ -253,7 +263,7 @@ def _generate_response(prompt: str) -> str:
 
 
 def generate_script(
-    video_subject: str, language: str = "", paragraph_number: int = 1
+        video_subject: str, language: str = "", paragraph_number: int = 1
 ) -> str:
     prompt = f"""
 # Role: Video Script Generator
@@ -360,7 +370,7 @@ Please note that you must use English for generating video search terms; Chinese
             response = _generate_response(prompt)
             search_terms = json.loads(response)
             if not isinstance(search_terms, list) or not all(
-                isinstance(term, str) for term in search_terms
+                    isinstance(term, str) for term in search_terms
             ):
                 logger.error("response is not a list of strings.")
                 continue
@@ -384,16 +394,85 @@ Please note that you must use English for generating video search terms; Chinese
     logger.success(f"completed: \n{search_terms}")
     return search_terms
 
+# user's input text comes from a book called The Little Prince,
+def generate_translate_tip(
+        text_description: str, extra: str = ""
+) -> str:
+    prompt = f"""
+# Role: Midjourney Image Prompt Generator {extra}
+
+## Goals:
+Convert the user's input text into an English prompt for midjourney AI image generation, ensuring accuracy in capturing the intended visual details. If the input is in Classical Chinese (文言文), translate its meaning into modern Chinese before converting it into English for the prompt.
+the result must not contain any content unrelated to the prompt words.
+
+## Constraints:
+1. The output must be an English prompt that clearly describes the visual elements of the scene or object to be depicted.
+2. Translate Classical Chinese (文言文) to modern Chinese for semantic clarity before generating the English prompt.
+3. The prompt should be descriptive, concise, and focus on key visual components.
+4. Ensure the image prompt captures the tone, atmosphere, and specific details required by the user’s description.
+5. Do not reference the input language in the output, and avoid explaining the translation process.
+6. Only return the generated English prompt; do not include any additional comments or explanations.
+7. The returned result must not contain any content unrelated to the prompt words
+
+## Rules:
+1. Analyze the input text for key visual elements such as colors, setting, characters, objects, and emotions.
+2. Ensure that the final English prompt includes relevant adjectives, scene descriptions, and relationships between elements as necessary.
+3. Maintain fidelity to the original text's meaning and intent, but prioritize clarity in the English version.
+4. If the input is ambiguous or lacks visual details, generate a well-rounded prompt by inferring logical elements based on context.
+
+
+## Workflows:
+1. Identify the key visual elements from the user's input (e.g., setting, objects, characters).
+2. If the input is in Classical Chinese (文言文), translate it to modern Chinese first, ensuring full understanding of the meaning.
+3. Create an accurate and vivid English prompt based on the modern Chinese translation.
+4. Finalize and provide the English image prompt for midjourney AI generation.
+
+
+# Initialization:
+
+- text description: {text_description}
+""".strip()
+    logger.info(f"text_description: {text_description}")
+    final_script = 'text_description'
+    def format_response(response):
+        # Clean the script
+        # Remove asterisks, hashes
+        response = response.replace("*", "")
+        response = response.replace("#", "")
+
+        # Remove markdown syntax
+        response = re.sub(r"\[.*\]", "", response)
+
+        return response
+
+    try:
+        response = _generate_response(prompt=prompt)
+        if response:
+            final_script = format_response(response)
+        else:
+            logging.error("gpt returned an empty response")
+
+    except Exception as e:
+        logger.error(f"failed to generate script: {e}")
+
+    logger.success(f"completed: \n{final_script}")
+    return final_script.strip()
+
 
 if __name__ == "__main__":
-    video_subject = "生命的意义是什么"
-    script = generate_script(
-        video_subject=video_subject, language="zh-CN", paragraph_number=1
-    )
-    print("######################")
-    print(script)
-    search_terms = generate_terms(
-        video_subject=video_subject, video_script=script, amount=5
-    )
-    print("######################")
-    print(search_terms)
+    # video_subject = "生命的意义是什么"
+    # script = generate_script(
+    #     video_subject=video_subject, language="zh-CN", paragraph_number=1
+    # )
+    # print(" script ######################")
+    # print(script)
+    # search_terms = generate_terms(
+    #     video_subject=video_subject, video_script=script, amount=5
+    # )
+    # print("######################")
+    # print(search_terms)
+
+    # generate_translate_tip("六岁那一年，我在一本描写原始森林的书里看见一幅扣人心弦的图画。那本书的书名叫做“丛林奇遇记”。",
+    #                        "during the late Western Han Dynasty and the Three Kingdoms period.")
+    generate_translate_tip("六岁那一年，我在一本描写原始森林的书里看见一幅扣人心弦的图画。",
+                           "")

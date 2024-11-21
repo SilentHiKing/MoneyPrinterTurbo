@@ -29,13 +29,13 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
 
 
 def combine_videos(
-    combined_video_path: str,
-    video_paths: List[str],
-    audio_file: str,
-    video_aspect: VideoAspect = VideoAspect.portrait,
-    video_concat_mode: VideoConcatMode = VideoConcatMode.random,
-    max_clip_duration: int = 5,
-    threads: int = 2,
+        combined_video_path: str,
+        video_paths: List[str],
+        audio_file: str,
+        video_aspect: VideoAspect = VideoAspect.portrait,
+        video_concat_mode: VideoConcatMode = VideoConcatMode.random,
+        max_clip_duration: int = 5,
+        threads: int = 2,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     audio_duration = audio_clip.duration
@@ -200,11 +200,11 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
 
 
 def generate_video(
-    video_path: str,
-    audio_path: str,
-    subtitle_path: str,
-    output_file: str,
-    params: VideoParams,
+        video_path: str,
+        audio_path: str,
+        subtitle_path: str,
+        output_file: str,
+        params: VideoParams,
 ):
     aspect = VideoAspect(params.video_aspect)
     video_width, video_height = aspect.to_resolution()
@@ -236,6 +236,7 @@ def generate_video(
         wrapped_txt, txt_height = wrap_text(
             phrase, max_width=max_width, font=font_path, fontsize=params.font_size
         )
+        # font = "Microsoft-YaHei-&-Microsoft-YaHei-UI"
         _clip = TextClip(
             wrapped_txt,
             font=font_path,
@@ -244,7 +245,7 @@ def generate_video(
             bg_color=params.text_background_color,
             stroke_color=params.stroke_color,
             stroke_width=params.stroke_width,
-            print_cmd=False,
+            print_cmd=True,
         )
         duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.set_start(subtitle_item[0][0])
@@ -320,11 +321,12 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             continue
 
         if ext in const.FILE_TYPE_IMAGES:
-            logger.info(f"processing image: {material.url}")
             # 创建一个图片剪辑，并设置持续时间为3秒钟
+            duration = clip_duration if material.duration == 0 else material.duration
+            logger.info(f'material.url:{material.url},duration: {duration}')
             clip = (
                 ImageClip(material.url)
-                .set_duration(clip_duration)
+                .set_duration(duration)
                 .set_position("center")
             )
             # 使用resize方法来添加缩放效果。这里使用了lambda函数来使得缩放效果随时间变化。
@@ -332,12 +334,12 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             # t代表当前时间，clip.duration为视频总时长，这里是3秒。
             # 注意：1 表示100%的大小，所以1.2表示120%的大小
             zoom_clip = clip.resize(
-                lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+                lambda t: 1 + (clip_duration * 0.00) * (t / clip.duration)
             )
 
             # 如果需要，可以创建一个包含缩放剪辑的复合视频剪辑
             # （这在您想要在视频中添加其他元素时非常有用）
-            final_clip = CompositeVideoClip([zoom_clip])
+            final_clip = CompositeVideoClip([clip])
 
             # 输出视频
             video_file = f"{material.url}.mp4"

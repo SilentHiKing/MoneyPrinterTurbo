@@ -4,7 +4,7 @@ from typing import Any, List, Optional
 
 import pydantic
 from pydantic import BaseModel
-
+MATERIAL_INFO_PROVIDER_COMFYUI = 'GeneratePicFromTxt'
 # 忽略 Pydantic 的特定警告
 warnings.filterwarnings(
     "ignore",
@@ -29,7 +29,7 @@ class VideoAspect(str, Enum):
         elif self == VideoAspect.portrait.value:
             return 1080, 1920
         elif self == VideoAspect.square.value:
-            return 1080, 1080
+            return 1024, 1400
         return 1080, 1920
 
 

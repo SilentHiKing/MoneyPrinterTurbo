@@ -1,6 +1,7 @@
 import os
 import sys
 
+
 # Add the root directory of the project to the system path to allow importing modules from the project
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if root_dir not in sys.path:
@@ -24,15 +25,15 @@ st.set_page_config(
     menu_items={
         "Report a bug": "https://github.com/harry0703/MoneyPrinterTurbo/issues",
         "About": "# MoneyPrinterTurbo\nSimply provide a topic or keyword for a video, and it will "
-        "automatically generate the video copy, video materials, video subtitles, "
-        "and video background music before synthesizing a high-definition short "
-        "video.\n\nhttps://github.com/harry0703/MoneyPrinterTurbo",
+                 "automatically generate the video copy, video materials, video subtitles, "
+                 "and video background music before synthesizing a high-definition short "
+                 "video.\n\nhttps://github.com/harry0703/MoneyPrinterTurbo",
     },
 )
 
 from app.config import config
 from app.models.const import FILE_TYPE_IMAGES, FILE_TYPE_VIDEOS
-from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode, VideoParams
+from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode, VideoParams,MATERIAL_INFO_PROVIDER_COMFYUI
 from app.services import llm, voice
 from app.services import task as tm
 from app.utils import utils
@@ -136,11 +137,11 @@ def init_log():
         record["message"] = record["message"].replace(root_dir, ".")
 
         _format = (
-            "<green>{time:%Y-%m-%d %H:%M:%S}</> | "
-            + "<level>{level}</> | "
-            + '"{file.path}:{line}":<blue> {function}</> '
-            + "- <level>{message}</>"
-            + "\n"
+                "<green>{time:%Y-%m-%d %H:%M:%S}</> | "
+                + "<level>{level}</> | "
+                + '"{file.path}:{line}":<blue> {function}</> '
+                + "- <level>{message}</>"
+                + "\n"
         )
         return _format
 
@@ -409,10 +410,12 @@ if not config.app.get("hide_config", False):
                 api_key = ", ".join(api_keys)
                 return api_key
 
+
             def save_keys_to_config(cfg_key, value):
                 value = value.replace(" ", "")
                 if value:
                     config.app[cfg_key] = value.split(",")
+
 
             pexels_api_key = get_keys_from_config("pexels_api_keys")
             pexels_api_key = st.text_input(
@@ -456,7 +459,7 @@ with left_panel:
         params.video_language = video_languages[selected_index][1]
 
         if st.button(
-            tr("Generate Video Script and Keywords"), key="auto_generate_script"
+                tr("Generate Video Script and Keywords"), key="auto_generate_script"
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
                 script = llm.generate_script(
@@ -496,6 +499,7 @@ with middle_panel:
             (tr("TikTok"), "douyin"),
             (tr("Bilibili"), "bilibili"),
             (tr("Xiaohongshu"), "xiaohongshu"),
+            (tr("GeneratePicFromTxt"), "GeneratePicFromTxt"),
         ]
 
         saved_video_source_name = config.app.get("video_source", "pexels")
@@ -522,7 +526,7 @@ with middle_panel:
 
         selected_index = st.selectbox(
             tr("Video Concat Mode"),
-            index=1,
+            index=0,
             options=range(len(video_concat_modes)),  # 使用索引作为内部选项值
             format_func=lambda x: video_concat_modes[x][0],  # 显示给用户的是标签
         )
@@ -533,9 +537,11 @@ with middle_panel:
         video_aspect_ratios = [
             (tr("Portrait"), VideoAspect.portrait.value),
             (tr("Landscape"), VideoAspect.landscape.value),
+            (tr("Square"), VideoAspect.square.value),
         ]
         selected_index = st.selectbox(
             tr("Video Ratio"),
+            index=1,
             options=range(len(video_aspect_ratios)),  # 使用索引作为内部选项值
             format_func=lambda x: video_aspect_ratios[x][0],  # 显示给用户的是标签
         )
@@ -569,8 +575,8 @@ with middle_panel:
         else:
             for i, v in enumerate(voices):
                 if (
-                    v.lower().startswith(st.session_state["ui_language"].lower())
-                    and "V2" not in v
+                        v.lower().startswith(st.session_state["ui_language"].lower())
+                        and "V2" not in v
                 ):
                     saved_voice_name_index = i
                     break
@@ -648,7 +654,7 @@ with middle_panel:
         ]
         selected_index = st.selectbox(
             tr("Background Music"),
-            index=1,
+            index=0,
             options=range(len(bgm_options)),  # 使用索引作为内部选项值
             format_func=lambda x: bgm_options[x][0],  # 显示给用户的是标签
         )
@@ -715,7 +721,7 @@ with right_panel:
             config.ui["text_fore_color"] = params.text_fore_color
 
         with font_cols[1]:
-            saved_font_size = config.ui.get("font_size", 60)
+            saved_font_size = config.ui.get("font_size", 30)
             params.font_size = st.slider(tr("Font Size"), 30, 100, saved_font_size)
             config.ui["font_size"] = params.font_size
 
@@ -723,7 +729,7 @@ with right_panel:
         with stroke_cols[0]:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
-            params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+            params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 0.05)
 
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:
@@ -734,12 +740,12 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if llm_provider != "g4f" and llm_provider != 'ollama' and not config.app.get(f"{llm_provider}_api_key", ""):
+    if llm_provider != "g4f" and not config.app.get(f"{llm_provider}_api_key", ""):
         st.error(tr("Please Enter the LLM API Key"))
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source not in ["pexels", "pixabay", "local"]:
+    if params.video_source not in ["pexels", "pixabay", "local", MATERIAL_INFO_PROVIDER_COMFYUI]:
         st.error(tr("Please Select a Valid Video Source"))
         scroll_to_bottom()
         st.stop()
@@ -770,12 +776,14 @@ if start_button:
     log_container = st.empty()
     log_records = []
 
+
     def log_received(msg):
         if config.ui["hide_log"]:
             return
         with log_container:
             log_records.append(msg)
             st.code("\n".join(log_records))
+
 
     logger.add(log_received)
 

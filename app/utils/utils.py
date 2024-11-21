@@ -1,8 +1,11 @@
+import hashlib
 import locale
 import os
 import platform
 import threading
 from typing import Any
+
+import unicodedata
 from loguru import logger
 import json
 from uuid import uuid4
@@ -189,6 +192,7 @@ def split_string_by_punctuations(s):
         if char not in const.PUNCTUATIONS:
             txt += char
         else:
+            txt += char
             result.append(txt.strip())
             txt = ""
     result.append(txt.strip())
@@ -227,3 +231,32 @@ def load_locales(i18n_dir):
 
 def parse_extension(filename):
     return os.path.splitext(filename)[1].strip().lower().replace(".", "")
+
+
+
+
+
+# 从b中筛选出a，并截掉
+def pick_string(a, b):
+    pick_result = ""
+    a = a.replace(" ", "")
+    index = 0
+    temp = b[0:30]
+    while index < len(a) and len(b) > 0:
+        if b[0] == a[index]:
+            index += 1
+        if not b[0].isspace() or b[0] == ' ':
+            pick_result += b[0]
+        b = b[1:]
+    # 标点符号
+    while len(b) > 0 and unicodedata.category(b[0]).startswith('P'):
+        pick_result += b[0]
+        b = b[1:]
+    # 换行符
+    if len(b) > 0 and unicodedata.category(b[0]) == 'Cc':
+        pick_result += b[0]
+        b = b[1:]
+    if len(pick_result) > 20:
+        print(f'{a}---{pick_result}')
+        print(f'temp={temp}')
+    return [pick_result, b]
